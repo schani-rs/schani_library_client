@@ -10,4 +10,4 @@ extern crate tokio_core;
 
 mod client;
 
-pub use client::{LibraryClient, NewImageData};
+pub use client::{Image, LibraryClient, NewImageData};

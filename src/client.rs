@@ -18,13 +18,13 @@ pub struct NewImageData {
     pub user_id: i32,
 }
 
-#[derive(Deserialize)]
-pub struct NewImageResponseData {
-    id: i32,
-    //raw_id: String,
-    //sidecar_id: String,
-    //image_id: String,
-    //user_id: i32,
+#[derive(Deserialize, Serialize)]
+pub struct Image {
+    pub id: i32,
+    pub raw_id: Option<String>,
+    pub sidecar_id: Option<String>,
+    pub image_id: Option<String>,
+    pub user_id: i32,
 }
 
 impl LibraryClient {
@@ -56,14 +56,65 @@ impl LibraryClient {
                 })
                 .and_then(|response| response.body().concat2())
                 .and_then(|body| {
-                    let resp_data = serde_json::from_slice::<NewImageResponseData>(
-                        body.to_vec().as_slice(),
-                    ).unwrap();
+                    let resp_data =
+                        serde_json::from_slice::<Image>(body.to_vec().as_slice()).unwrap();
                     info!("image {} added to library", resp_data.id);
                     Ok(resp_data.id)
                 })
                 .map_err(|e| {
                     warn!("adding image to library failed: {}", e);
+                    e
+                }),
+        )
+    }
+
+    pub fn get_image(&self, image_id: i32) -> Box<Future<Item = Image, Error = error::Error>> {
+        info!("loading image data from library");
+        let uri = self.build_uri(&format!("/images/{}", image_id));
+
+        Box::new(
+            self.client
+                .get(uri)
+                .and_then(|response| match response.status() {
+                    StatusCode::Ok => Ok(response),
+                    _ => Err(error::Error::Status),
+                })
+                .and_then(|response| response.body().concat2())
+                .and_then(|body| {
+                    let resp_data =
+                        serde_json::from_slice::<Image>(body.to_vec().as_slice()).unwrap();
+                    info!("image {} loaded from library", resp_data.id);
+                    Ok(resp_data)
+                })
+                .map_err(|e| {
+                    warn!("loading image from library failed: {}", e);
+                    e
+                }),
+        )
+    }
+
+    pub fn update_image(&self, image: Image) -> Box<Future<Item = i32, Error = error::Error>> {
+        info!("updateing image {} in the library", image.id);
+        let uri = self.build_uri(&format!("/images/{}", image.id));
+        let mut req = Request::new(Method::Put, uri);
+        req.set_body(serde_json::to_string(&image).unwrap());
+
+        Box::new(
+            self.client
+                .request(req)
+                .and_then(|response| match response.status() {
+                    StatusCode::Ok => Ok(response),
+                    _ => Err(error::Error::Status),
+                })
+                .and_then(|response| response.body().concat2())
+                .and_then(|body| {
+                    let resp_data =
+                        serde_json::from_slice::<Image>(body.to_vec().as_slice()).unwrap();
+                    info!("image {} updated in library", resp_data.id);
+                    Ok(resp_data.id)
+                })
+                .map_err(move |e| {
+                    warn!("updating image {} in library failed: {}", image.id, e);
                     e
                 }),
         )
@@ -77,14 +128,31 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn add_image() {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let client = StoreClient::new("http://localhost:8000".parse().unwrap(), &handle);
+        let client = LibraryClient::new("http://localhost:8002".parse().unwrap(), &handle);
 
-        let work = client
-            .upload_raw_image(b"123".to_vec())
-            .map_err(|e| panic!("{:?}", e));
+        let new_image = NewImageData {
+            raw_id: None,
+            sidecar_id: None,
+            image_id: None,
+            user_id: 1,
+        };
+        let work = client.add_image(new_image).map_err(|e| panic!("{:?}", e));
+
+        core.run(work).unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn get_image() {
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let client = LibraryClient::new("http://localhost:8002".parse().unwrap(), &handle);
+
+        let work = client.get_image(123).map_err(|e| panic!("{:?}", e));
 
         core.run(work).unwrap();
     }
