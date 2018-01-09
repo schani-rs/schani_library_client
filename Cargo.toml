@@ -1,0 +1,13 @@
+[package]
+name = "schani_library_client"
+version = "0.1.0"
+authors = ["Christoph Wurst <christoph@winzerhof-wurst.at>"]
+
+[dependencies]
+futures = "*"
+hyper = "0.11.0"
+log = "*"
+serde = "^1.0"
+serde_derive = "^1.0"
+serde_json = "^1.0"
+tokio-core = "*"
